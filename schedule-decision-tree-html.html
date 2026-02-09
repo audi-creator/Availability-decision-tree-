@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule Change Decision Tree</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.0/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc;">
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    // Simple icon components
+    const ArrowRight = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+    );
+
+    const CheckCircle = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+
+    const AlertCircle = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+
+    const MessageCircle = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    );
+
+    const DecisionTree = () => {
+      const [currentStep, setCurrentStep] = React.useState('start');
+      const [answers, setAnswers] = React.useState({});
+      const [pathSteps, setPathSteps] = React.useState([]);
+      const [hasCompleted, setHasCompleted] = React.useState(false);
+      const [completedPaths, setCompletedPaths] = React.useState([]);
+      const [canFinish, setCanFinish] = React.useState(false);
+
+      const handleAnswer = (question, answer, nextStep) => {
+        setAnswers({ ...answers, [question]: answer });
+        setCurrentStep(nextStep);
+        setPathSteps([...pathSteps, currentStep]);
+      };
+
+      const resetTree = () => {
+        setCurrentStep('start');
+        setAnswers({});
+        setPathSteps([]);
+        setHasCompleted(false);
+      };
+      
+      const clearAll = () => {
+        setCurrentStep('start');
+        setAnswers({});
+        setPathSteps([]);
+        setHasCompleted(false);
+        setCompletedPaths([]);
+        setCanFinish(false);
+      };
+      
+      const goBackToFork = () => {
+        setCurrentStep('oneTimeSwap');
+        setAnswers({});
+        setPathSteps(['start']);
+        setHasCompleted(false);
+      };
+
+      const markComplete = () => {
+        setHasCompleted(true);
+        const newCompletedPaths = [...completedPaths, currentStep];
+        setCompletedPaths(newCompletedPaths);
+        if (newCompletedPaths.length >= 4) {
+          setCanFinish(true);
+        }
+      };
+
+      const steps = {
+        start: {
+          question: "What type of schedule change do you need to make?",
+          options: [
+            { text: "One-time swap (just this week)", next: "oneTimeSwap" },
+            { text: "Permanent ongoing change", next: "permanentChange" },
+            { text: "Change within the next 3 business days", next: "withinThreeDays" }
+          ]
+        },
+        oneTimeSwap: {
+          question: "Will you still maintain 3 days/8 hours for the week?",
+          options: [
+            { text: "Yes, I'm just swapping which days", next: "swapApproved" },
+            { text: "No, I'll be under 3 days or under 8 hours/day", next: "requiresApproval" }
+          ]
+        },
+        permanentChange: {
+          question: "This is a permanent change to your regular schedule",
+          result: {
+            type: "manager",
+            title: "Manager Approval Required",
+            message: "Permanent schedule changes require manager discussion and approval before making the change.",
+            steps: [
+              "Contact your manager in your PMC",
+              "Discuss the requested permanent schedule change",
+              "Wait for approval",
+              "Once approved, update Provider Dashboard"
+            ]
+          }
+        },
+        withinThreeDays: {
+          question: "Changes within 3 business days can't be made in Provider Dashboard",
+          result: {
+            type: "bot",
+            title: "Use the 72-Hour Availability Bot",
+            message: "The Provider Dashboard locks edits for today and the next 3 business days. You must use the 72-Hour Availability Bot in your PMC instead.",
+            steps: [
+              "Go to your Private Manager Channel (PMC)",
+              "Click the 'Workflows' tab",
+              "Find the '72-Hour Availability Bot'",
+              "Submit your change request"
+            ]
+          }
+        },
+        swapApproved: {
+          question: "Your schedule swap is allowed",
+          result: {
+            type: "approved",
+            title: "No Approval Needed - Update Provider Dashboard",
+            message: "Since you're maintaining your 3 days/8 hours commitment and returning to your regular schedule next week, you can make this change directly in the Provider Dashboard.",
+            steps: [
+              "Log into Provider Dashboard",
+              "Go to 'My Availability'",
+              "Update the dates for this week only",
+              "Submit your changes",
+              "Return to your regular schedule next week"
+            ],
+            reminder: "This flexibility is for temporary, one-time swaps only. If you need to change your regular ongoing schedule, that requires manager approval."
+          }
+        },
+        requiresApproval: {
+          question: "This change affects your minimum availability commitment",
+          result: {
+            type: "manager",
+            title: "Manager Approval Required",
+            message: "Any change that causes you to fall below 3 days/8 hours per day requires manager discussion and approval.",
+            steps: [
+              "Contact your manager in your PMC",
+              "Explain the situation and request",
+              "Wait for approval",
+              "Once approved, update Provider Dashboard"
+            ]
+          }
+        }
+      };
+
+      const currentStepData = steps[currentStep];
+
+      const ResultDisplay = ({ result }) => {
+        const icons = {
+          approved: <CheckCircle className="w-12 h-12 text-emerald-600" />,
+          manager: <MessageCircle className="w-12 h-12 text-slate-600" />,
+          bot: <AlertCircle className="w-12 h-12 text-amber-600" />
+        };
+
+        const bgColors = {
+          approved: "bg-emerald-50 border-emerald-300",
+          manager: "bg-slate-50 border-slate-300",
+          bot: "bg-amber-50 border-amber-300"
+        };
+        
+        const isSwapApproved = currentStep === 'swapApproved';
+        const isRequiresApproval = currentStep === 'requiresApproval';
+        const isForkPath = isSwapApproved || isRequiresApproval;
+        
+        const hasCompletedSwapApproved = completedPaths.includes('swapApproved');
+        const hasCompletedRequiresApproval = completedPaths.includes('requiresApproval');
+        const needsOtherForkPath = isForkPath && !(hasCompletedSwapApproved && hasCompletedRequiresApproval);
+
+        return (
+          <div className={`border-2 rounded-lg p-6 ${bgColors[result.type]}`}>
+            <div className="flex items-start gap-4 mb-4">
+              {icons[result.type]}
+              <div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">{result.title}</h3>
+                <p className="text-slate-700">{result.message}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 bg-white rounded-lg p-4 border border-slate-200">
+              <h4 className="font-semibold text-slate-800 mb-3">What to do:</h4>
+              <ol className="space-y-2">
+                {result.steps.map((step, index) => (
+                  <li key={index} className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 bg-slate-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                      {index + 1}
+                    </span>
+                    <span className="text-slate-700 pt-0.5">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {result.reminder && (
+              <div className="mt-4 bg-slate-100 border-l-4 border-slate-500 p-3 rounded">
+                <p className="text-sm text-slate-700">
+                  <strong>⚠️ Remember:</strong> {result.reminder}
+                </p>
+              </div>
+            )}
+
+            {!hasCompleted ? (
+              <button
+                onClick={markComplete}
+                className="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                ✓ I Understand - Mark Complete
+              </button>
+            ) : needsOtherForkPath ? (
+              <div className="mt-6 space-y-3">
+                <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 font-medium py-3 px-6 rounded-lg text-center">
+                  ✓ Scenario Complete
+                </div>
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+                  <p className="text-sm text-amber-900 font-medium mb-2">
+                    ⚠️ Before moving on: You need to explore the other option too!
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    {isSwapApproved 
+                      ? "You've seen what happens when you maintain your hours. Now see what's required when you DON'T maintain the minimum 3 days/8 hours commitment."
+                      : "You've seen what happens when you can't maintain minimum hours. Now see what happens when you CAN maintain your 3 days/8 hours commitment."}
+                  </p>
+                </div>
+                <button
+                  onClick={goBackToFork}
+                  className="w-full bg-slate-600 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                >
+                  Review the Other Option
+                </button>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-3">
+                <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 font-medium py-3 px-6 rounded-lg text-center">
+                  ✓ Scenario Complete
+                </div>
+                {!canFinish ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={resetTree}
+                      className="w-full bg-slate-600 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                    >
+                      Start Over ({4 - completedPaths.length} more required)
+                    </button>
+                    <p className="text-xs text-slate-600 text-center">
+                      You must complete {4 - completedPaths.length} more scenario(s) before proceeding
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="bg-emerald-50 border-2 border-emerald-500 text-emerald-800 font-semibold py-3 px-6 rounded-lg text-center">
+                      🎉 All 4 Scenarios Complete!
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={resetTree}
+                        className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                      >
+                        Start Over
+                      </button>
+                      <button
+                        onClick={clearAll}
+                        className="bg-slate-400 hover:bg-slate-500 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-700 mb-2">Can I Make This Schedule Change?</h1>
+            <p className="text-slate-600">Complete all 4 possible scenarios to finish this section</p>
+          </div>
+
+          <div className="mb-6 bg-slate-50 border-2 border-slate-300 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">Scenarios Completed:</span>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-slate-700">{completedPaths.length} of 4 required</span>
+                {completedPaths.length > 0 && (
+                  <button
+                    onClick={clearAll}
+                    className="text-xs bg-slate-400 hover:bg-slate-500 text-white font-medium py-1.5 px-3 rounded transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="mt-2 flex gap-2">
+              {[1, 2, 3, 4].map((num) => (
+                <div
+                  key={num}
+                  className={`flex-1 h-2 rounded-full ${
+                    completedPaths.length >= num ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                ></div>
+              ))}
+            </div>
+          </div>
+
+          {currentStepData.result ? (
+            <ResultDisplay result={currentStepData.result} />
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-slate-50 border-2 border-slate-300 rounded-lg p-6">
+                <h2 className="text-xl font-semibold text-slate-800 mb-4">
+                  {currentStepData.question}
+                </h2>
+                <div className="space-y-3">
+                  {currentStepData.options.map((option, index) => {
+                    let isCompleted = false;
+                    if (currentStep === 'start') {
+                      if (option.next === 'permanentChange' || option.next === 'withinThreeDays') {
+                        isCompleted = completedPaths.includes(option.next);
+                      } else if (option.next === 'oneTimeSwap') {
+                        isCompleted = completedPaths.includes('swapApproved') && completedPaths.includes('requiresApproval');
+                      }
+                    } else if (currentStep === 'oneTimeSwap') {
+                      isCompleted = completedPaths.includes(option.next);
+                    }
+                    
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => !isCompleted && handleAnswer(currentStep, option.text, option.next)}
+                        disabled={isCompleted}
+                        className={`w-full border-2 font-medium py-4 px-6 rounded-lg transition-all flex items-center justify-between group ${
+                          isCompleted
+                            ? 'bg-slate-200 border-slate-400 text-slate-500 cursor-not-allowed'
+                            : 'bg-white hover:bg-slate-100 border-slate-300 hover:border-slate-500 text-slate-800 cursor-pointer'
+                        }`}
+                      >
+                        <span className="text-left flex items-center gap-2">
+                          {isCompleted && <CheckCircle className="w-5 h-5 text-emerald-600" />}
+                          {option.text}
+                        </span>
+                        {!isCompleted && <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-colors" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<DecisionTree />);
+  </script>
+</body>
+</html>
